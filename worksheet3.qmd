@@ -1,0 +1,194 @@
+---
+title: "Tutorial 3"
+author: "Stefanio Marques - 25250375"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+# Introduction
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 3")
+```
+
+
+### Load the packages
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(stargazer)
+library(modelsummary)
+library(ggplot2)
+library(marginaleffects)
+library(car)
+```
+
+### Part 01
+
+```{r}
+WAGE1 <- read_xlsx("WAGE1.xlsx")
+```
+
+#### 02. Generate the natural log of wages, and estimate the coefficients of a specification that explains log wages controlling for education and its interaction with the variables.
+
+```{r}
+WAGE1$lnwage <- log(WAGE1$wage)
+```
+
+```{r}
+reg1 <- lm(lnwage ~ educ * female + exper + 
+             I(exper^2) + tenure + I(tenure^2) + 
+             nonwhite + married + numdep + northcen + 
+             south + west, data = WAGE1)
+
+summary(reg1)
+```
+
+#### Are the returns to education lower for female workers?
+
+No. Based on these results, we do not have evidence that the returns to education are lower for female workers.
+
+#### Are the returns to experience constant over the working life?
+
+No, the returns to experience are not constant; they are diminishing.
+
+#### Are the returns to tenure constant over the working life?
+
+No, the returns to tenure are also not constant; they show a diminishing pattern.
+
+#### Does being married boost wages?
+
+There is weak evidence that being married boosts wages.
+
+#### Is there a gender wage gap?
+
+Based on this model, there is no statistically significant evidence of a gender wage gap.
+
+#### 04. Does it matter where you live? Test for the joint significance of the regional dummies using a Wald test.
+
+```{r}
+Hnull1 <- c("northcen=0", "south=0", "west=0")
+linearHypothesis(reg1, Hnull1, test = "Chisq")
+```
+
+#### 05. Reduce the model to a more parsimonious specification eliminating the interaction of education and gender, the nonwhite dummy. Is there a significant gender wage gap now?
+
+```{r}
+reg2 <- lm(lnwage ~ educ + female + exper + I(exper^2) + tenure + I(tenure^2) + married + numdep + northcen + south + west, data = WAGE1)
+
+summary(reg2)
+```
+
+#### 06. Test whether female workers earn 33% smaller wages than their male counterparts.
+
+```{r}
+Hnull2 <- c("female = -0.33")
+linearHypothesis(reg2, Hnull2)
+
+summary(reg2)
+```
+
+### Part 02: STAR
+
+```{r}
+STAR <- read_xlsx("STAR.xlsx")
+```
+
+#### 07. Let’s check if there is missing data using the command
+
+```{r}
+colSums(is.na(STAR))
+```
+
+#### 08. Create dummy to identify observations with missing data using the ifelse function which uses the syntax
+
+```{r}
+STAR$missing_tchexper <- ifelse(is.na(STAR$tchexper), 1, 0)
+STAR$missing_absent <- ifelse(is.na(STAR$absent), 1, 0)
+
+datasummary_balance(~missing_tchexper,
+                    data = STAR,
+                    dinm = FALSE)
+
+datasummary_balance(~missing_absent,
+                    data = STAR,
+                    dinm = FALSE)
+```
+
+#### 09. Check if there is any obvious difference between the obs with and without missing data.
+
+```{r}
+STAR |>
+  group_by(missing_tchexper) |>
+  summarise(
+    avg_math_score = mean(mathscore, na.rm = TRUE),
+    avg_absent_exp = mean(absent, na.rm = TRUE),
+    count = n()
+  )
+
+STAR |>
+  group_by(missing_absent) |>
+  summarise(
+    avg_math_score = mean(mathscore, na.rm = TRUE),
+    avg_teacher_exp = mean(tchexper, na.rm = TRUE),
+    count = n()
+  )
+```
+
+#### 10. Ideally the assignment to the treatment/control groups is random. Look for supporting evidence by obtaining summary statistics by class type. Construct a nice table that includes Title and Source of data.
+
+```{r}
+STAR$class <- ifelse(STAR$small == 1, 1,
+                     ifelse(STAR$regular == 1, 2,
+                            ifelse(STAR$aide == 1, 3, NA)))
+```
+
+```{r}
+datasummary_balance(~class,
+                    data = STAR,
+                    title = "caption1",
+                    notes = "reference1", dinm = FALSE)
+```
+
+#### 11. Estimate a model to assess the effectiveness of class size on reading score and math score separately.
+
+```{r}
+reg1 <- lm(readscore ~ small + aide, data = STAR)
+reg2 <- lm(mathscore ~ small + aide, data = STAR)
+summary(reg1)
+summary(reg2)
+```
+
+#### 12. Note that there are factors that may affect test scores, can you think of some? Re-estimate your model using TotalScore as dependent variable and controlling for those factors.
+
+```{r}
+reg3 <- lm(totalscore ~ small + aide + boy + white_asian + black + tchexper + freelunch, data = STAR)
+
+summary(reg3)
+```
+
+#### 13. Consider now the possibility that teacher experience may have a non-linear effect on students’ performance. What do you conclude?
+
+```{r}
+reg4 <- lm(totalscore ~ small + aide + boy + white_asian + black + tchexper +             I(tchexper^2) + freelunch, data = STAR)
+
+summary(reg4)
+```
+
+#### 14. Another factor that may affect test scores is the school itself (some schools may be located in wealthier districts that may be able to attract better teachers with higher pay). Add school dummies and estimate the model.
+
+```{r}
+reg5 <- lm(totalscore ~ small + aide + boy + white_asian + black + 
+        tchexper + I(tchexper^2) + freelunch + factor(schid), data = STAR)
+
+summary(reg5)
+```
+
+#### 15. Test whether the school dummies are jointly significant.
+
+```{r}
+anova(reg4, reg5)
+```
+

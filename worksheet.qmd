@@ -1,0 +1,173 @@
+---
+title: "Worksheet1"
+author: "Stefanio Marques"
+date: "'r Sys.Date()'"
+format: docx
+editor: visual
+---
+
+## Introduction
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs")
+```
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(stargazer)
+library(modelsummary)
+library(ggplot2)
+```
+
+## Question 01
+
+Upload the excel dataset using the code:
+
+```{r}
+WAGE1 <- read_xlsx("WAGE1.xlsx")
+```
+
+Familiarize yourself with the dataset looking at all the variables
+
+```{r results='hide'}
+glimpse(WAGE1)
+```
+
+Obtain a table of summary statistics
+
+```{r}
+datasummary_skim(WAGE1, output = "default", histogram=T)
+
+caption <- 'Table 1: Descriptive statistics of our sample'
+reference <- 'Source: Data are from Wooldridge.'
+datasummary_balance(~1,
+                    data = WAGE1,
+                    title = caption,
+                    notes = reference)
+```
+
+Produce a boxplot for variables wage, educ, exper, tenure, numdep
+
+```{r}
+var1 <- WAGE1$wage
+var2 <- WAGE1$educ
+var3 <- WAGE1$exper
+var4 <- WAGE1$tenure
+var5 <- WAGE1$numdep
+boxplot(var1,var2,var3,var4,var5)
+```
+
+\newpage
+
+## Question 5-6
+
+```{r}
+WAGE1 %>%
+  group_by(female) %>%
+  summarise("Wage by sex"= mean(wage),
+            "Education"= mean(educ),
+            "Experience"= mean(exper),
+            "Tenure"= mean(tenure),
+            "Number dependents"= mean(numdep))
+```
+
+Boxplot of wage by gender
+
+```{r}
+boxplot(wage~female,
+        data=WAGE1,
+        main="Wage boxplots by gender",
+        xlab = "Gender",
+        ylab = "Wage",
+        col="orange",
+        border="brown")
+```
+
+To produce a nice-looking table of avarages by group
+
+```{r}
+caption2 <- 'Table 2:Descriptive statistics by gender'
+reference2 <- 'Source: Data are from Wooldridge.'
+
+datasummary_balance(~female,
+                    data = WAGE1,
+                    title = caption2,
+                    notes = reference2, dinm = FALSE)
+```
+
+## Question 7-8
+
+```{r}
+p <- ggplot(WAGE1,aes(x=wage)) + geom_density() + geom_vline(aes(xintercept=mean(wage)),
+color="blue", linetype="dashed", linewidth=1)
+p
+```
+___
+
+```{r}
+WAGE1$lnwage <- log(WAGE1$wage)
+boxplot(WAGE1$lnwage)
+```
+
+## Question 9-13
+
+```{r}
+data <- WAGE1 %>%
+  select(lnwage, educ, exper, tenure, numdep)
+datasummary_correlation(data)
+```
+
+```{r}
+ggplot(WAGE1,aes(x=educ,y=lnwage)) +
+  geom_point()+
+  geom_smooth(se=F)+
+  geom_smooth(method="lm",se=F)+
+  labs(title = "Relationship between wages and education",
+                     subtitle = "Source:own data")
+```
+
+regressors
+
+```{r}
+
+```
+
+_____
+OLS
+_____
+
+```{r}
+reg1 <- lm(lnwage ~ educ + tenure + nonwhite + married + exper + northcen +  female + numdep, data=WAGE1)
+
+modelsummary(list(reg1))
+
+reg5 <- lm(lnwage ~ educ_level + tenure + nonwhite + married + exper + northcen +  female + numdep, data=WAGE1)
+
+modelsummary(list(reg5))
+```
+
+____
+
+```{r}
+library(stargazer)
+stargazer(reg1, reg5,
+          title = "Results",
+          type = "text",
+          out = "table1.text",
+          header = FALSE,
+          no.space = TRUE)
+```
+
+
+
+
+

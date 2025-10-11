@@ -1,0 +1,178 @@
+---
+title: "Worksheet2"
+author: "Stefanio Marques"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+## Introduction
+
+Clean the Envirioment
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 2")
+```
+
+## Load the Packages
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(stargazer)
+library(modelsummary)
+library(ggplot2)
+library(marginaleffects)
+library(car)
+```
+
+Upload the excel dataset using the code:
+
+```{r}
+WAGE1 <- read_xlsx("WAGE1.xlsx")
+```
+
+## Question 1-2
+
+Generate the natural log of wages, and run the basic regression we did in previous tutorial:
+
+```{r}
+WAGE1$lnwage <- log(WAGE1$wage)
+```
+
+```{r}
+reg1 <- lm(lnwage ~ educ + exper + tenure + female + nonwhite + married + numdep + northcen + south + west, data = WAGE1)
+```
+
+Relationship between two variables
+
+```{r}
+ggplot(WAGE1, aes(x=exper,y=lnwage))+
+geom_point()+
+geom_smooth(se=F)+
+geom_smooth(method="lm",se=F)+
+labs(
+title="Relationship between wages and exper",
+subtitle="Source: own data"
+)
+```
+
+Estimate the new model with a quadratic term for experience
+
+```{r}
+reg2 <- lm(lnwage ~ educ + exper + I(exper^2) + tenure + female + nonwhite + married + numdep + northcen + south + west, data = WAGE1)
+```
+
+Basic summary of the new model
+
+```{r}
+modelsummary(reg2)
+```
+
+```{r}
+avg_slopes(reg2) #avarage marginal effect
+```
+
+```{r}
+avg_slopes(reg2, newdata = "mean")
+```
+
+## Question 03
+
+Estimating the Interaction Model
+
+```{r}
+reg3 <- lm(lnwage ~ educ * female + exper + I(exper^2) + tenure + nonwhite + 
+                    married + numdep + northcen + south + west, data = WAGE1)
+modelsummary(reg3)
+```
+
+\newpage
+
+## Question 04
+
+```{r}
+reg4 <- lm(lnwage ~ educ * female + exper + I(exper^2) + tenure + I(tenure^2) + 
+                    nonwhite + married + numdep + northcen + south + west, 
+           data = WAGE1)
+modelsummary(list(reg1, reg2, reg3, reg4))
+```
+
+## Question 05
+
+```{r}
+library(modelsummary)
+modelplot(list("Final Model" = reg4), coef_omit = 'Intercept')
+```
+
+Use these commands to plot the marginal effects of education by gender
+
+```{r}
+plot_slopes(reg4,
+            variables = "educ",
+            slope = "dydx",
+            by=c("female"))
+```
+
+Marginal effects of experience from the specification in 4
+
+```{r}
+plot_slopes(reg4,
+            variables = "exper",
+            condition = c("exper"))
+```
+
+Calculate the average return to education across your entire sample
+
+```{r}
+avg_slopes(reg4, variables = "educ")
+```
+
+## Question 06
+
+```{r}
+reg5 <- lm(lnwage ~ educ*female + exper*female + I(exper^2) + tenure + I(tenure^2) + nonwhite + married + numdep + northcen + south + west,
+           data = WAGE1)
+```
+
+```{r}
+modelsummary(list(reg1, reg2, reg3, reg4, reg5))
+```
+
+Plot the marginal effect of experience, conditioned on experience level
+
+```{r}
+plot_slopes(reg5,
+            variables = "exper",
+            condition = c("exper", "female"))
+```
+
+## Question 07
+
+```{r}
+stargazer(reg1, reg5,
+          title="Wage Regression Results",
+          type="text",
+          out="table1.text",
+          header=FALSE,
+          no.space=TRUE)
+```
+
+Alternatively, you can change to hyml file
+
+```{r}
+stargazer(reg1, reg5,
+          title="Wage Regression Results",
+          type="html",
+          out="table1.html")
+```
+
+## Question 08
+
+- Go to menu File and select Knit document.
+- If execution is halted, there is a mistake in the code, go back and try to fix it
+
