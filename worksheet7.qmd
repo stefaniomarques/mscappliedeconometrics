@@ -1,0 +1,221 @@
+---
+title: "Tutorial 7"
+author: "Stefanio Marques - 25250375"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+### Introduction
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 7")
+```
+
+#### Load the packages
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+
+library(readxl)
+library(tidyverse)
+library(modelsummary)
+library(stargazer)
+library(ggplot2)
+library(ggfortify)
+library(car)
+library(lmtest)
+library(sandwich)
+library(estimatr)
+library(fixest)
+library(ivreg)
+library(gmm)
+library(flextable)
+```
+
+#### 
+
+Upload the dataset
+
+```{r}
+# or provide the full file path.
+brumm <- read_excel("brumm.xlsx")
+
+
+# H0: β1=0, β2=1, β3=-1
+Hnull_strong <- c("(Intercept)=0", "money=1", "output=-1")
+```
+
+where INFLAT is the growth rate of the general price level, MONEY is the growth rate of
+the money supply, and OUTPUT is the growth rate of national output.
+The dataset you have available consists of 1995 data on 76 countrie
+
+### Part A - OLS Estimation
+
+```{r}
+# 1. Run the OLS model [cite: 18]
+ols <- lm(inflat ~ money + output, data = brumm)
+
+# 2. Display the OLS results
+summary(ols)
+```
+
+### Part B - Test Quantity Theory (OLS)
+We perform the Wald test for the "strong" hypothesis  using the standard OLS standard errors.
+
+```{r}
+# Get the chi-square statistic (Wald test)
+linearHypothesis(ols, Hnull_strong)
+
+# Weak
+Hnull_w <- c("money=1", "output=-1")
+linearHypothesis(ols, Hnull_w)
+```
+
+### Part C - Heteroskedasticity Tests
+We examine the residuals visually and with a formal test.
+
+```{r}
+# 1. Visually examine residuals [cite: 27, 28]
+autoplot(ols) +
+  theme_bw(base_size = 14)
+
+# 2. Perform Breusch-Pagan test [cite: 30]
+bptest(ols)
+```
+
+Conclusion: If the bptest p-value is less than 0.05, we reject the null of homoskedasticity and conclude that heteroskedasticity is present.
+
+### Part D - Test Quantity Theory (Robust OLS)
+
+We test the hypothesis again, this time using robust standard errors (HC3) to account for potential heteroskedasticity.
+
+```{r}
+# Test using robust standard errors [cite: 34]
+linearHypothesis(ols, Hnull_strong, vcov. = hccm(ols, type = "hc3"))
+linearHypothesis(ols, Hnull_w, vcov. = hccm(ols, type = "hc3"))
+```
+
+### Part E - 2SLS Estimation (with ivreg)
+
+It is argued that output may be endogenous. We use the four proposed instruments to run a 2SLS model using the ivreg package .
+
+The ivreg syntax is: y ~ exo_vars + endo_vars | exo_vars + instruments
+
+```{r}
+# 1. Obtain 2SLS estimator
+iv <- ivreg(inflat ~ money + output | money + initial + school + inv + poprate, 
+                  data = brumm)
+summary(iv, diagnostics = TRUE)
+
+# 2. Get 2SLS estimates with robust standard errors
+coeftest(iv, vcov = vcovHC(iv, type = "HC3"))
+```
+
+### Part F - 2SLS Estimation (with fixest)
+
+Here we estimate the same model using the fixest package, which has a different and very powerful syntax.
+
+```{r}
+# 1. Obtain 2SLS estimator using feols()
+# We use '1' for the fixed_effects part to signify just an intercept.
+model2 <- feols(inflat ~ money | 1 | output ~ initial + school + inv + poprate, 
+                      data = brumm)
+
+# 2. Get robust standard errors (the default in fixest)
+summary(model2)
+```
+
+### Part G - Compare OLS and 2SLS Estimates
+
+Let's compare the point estimates from OLS, ivreg, and fixest side-by-side. modelsummary works well for this.
+
+```{r}
+modelsummary(list(ols,iv), stars = TRUE)
+
+modelsummary(list("OLS" = ols, 
+                  "2SLS (ivreg)" = iv, 
+                  "2SLS (fixest)" = model2),
+             stars = TRUE)
+```
+
+### Part H - Test Quantity Theory (Robust 2SLS)
+
+Now we test the hypothesis again using our 2SLS model with robust standard errors. We can use the iv_model object.
+
+```{r}
+# Test hypothesis using the 2SLS model and robust errors
+# Note: By default, linearHypothesis uses a chi-square (Wald) test.
+# We can be explicit by adding test = "F" as suggested
+linearHypothesis(iv, Hnull_strong, 
+                 vcov. = vcovHC(iv, type = "HC3"))
+
+linearHypothesis(iv, Hnull_w, 
+                 vcov. = vcovHC(iv, type = "HC3"))
+```
+
+
+### Part I - 2SLS Estimation (with fixest)
+
+Obtain the robust standard errors. You need to install estimatr and car
+
+```{r}
+iv2 <- feols(inflat ~ money | 1 | output ~ initial + school + inv + poprate, 
+                      data = brumm)
+
+# 2. Get robust standard errors (the default in fixest)
+modelsummary(list(ols,iv,iv2), stars = TRUE)
+```
+
+### Part J - GMM Estimation
+
+We can also obtain GIVE (GMM) estimates using the gmm package.
+
+
+Note: The code in the worksheet  refers to a different dataset (mroz2) and is incorrectly formatted. The code below is the correct implementation for our model.
+
+Obtain the bootstrapped s.e. Here you need the package sandwich
+
+```{r}
+mm <- cbind(brumm$money, brumm$initial, brumm$school, brumm$inv, brumm$poprate)
+gmm <- gmm(inflat ~ money + output,
+           x = mm, data = brumm)
+
+
+modelsummary(list(ols,iv,iv2,gmm), stars = TRUE)
+```
+
+### Part K - Perform the Wu-Hauman test for endogeneity
+
+```{r}
+step1 <- lm(output ~ money + initial + school + inv + poprate,
+            data = brumm)
+v <- step1$res
+wu_test <- lm_robust(inflat ~ money + output + v, data = brumm)
+summary(wu_test)
+```
+
+### Part L - Sargan test
+
+```{r}
+res_iv <- iv$residuals
+sargan <- lm(res_iv ~ money + initial + school + inv + poprate,
+             data = brumm)
+summary(sargan)
+```
+
+Not rejecting
+
+### Part M - Weak instruments test
+
+```{r}
+strong_robust <- lm_robust(output ~ money + initial + school + inv + poprate,
+             data = brumm)
+summary(strong_robust)
+Hnull <- c("initial=0", "school=0", "inv=0", "poprate=0")
+linearHypothesis(strong_robust, Hnull, test="F")
+```
+

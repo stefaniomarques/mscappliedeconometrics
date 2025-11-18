@@ -1,0 +1,191 @@
+---
+title: "Tutorial 6"
+author: "Stefanio Marques - 25250375"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+### Introduction
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 6")
+```
+
+#### Load the packages
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(modelsummary)
+library(ggfortify)
+library(car)
+library(stargazer)
+library(lmtest)
+library(estimatr)
+library(sandwich)
+```
+
+####
+Upload the dataset
+
+```{r}
+airquality <- read_xlsx("airquality.xlsx")
+
+names(airquality)
+```
+
+### Part A - Estimate a linear regression model that explains airq from the other variables using OLS.
+
+
+```{r}
+model <- lm(airq ~ vala + rain + coas + dens + medi, data = airquality)
+summary(model)
+```
+
+### Part B - Test hypothesis (average income)
+Test the null hypothesis that average income does not affect the airquality. Test the
+joint hypothesis that none of the variables has an effect upon airquality
+
+```{r}
+# To test this hypothesis formally (H0: medi = 0):
+linearHypothesis(model, "medi = 0")
+```
+
+### Part C - Test joint hypothesis (F-test)
+Use the command autoplot to graphically inspect the residuals; is there any sign of
+heteroskedasticity?
+
+```{r}
+#To test H0 (all coefficients are zero) formally:
+linearHypothesis(model, c("vala = 0", "rain = 0", "coas = 0", "dens = 0", "medi = 0"))
+```
+
+Graphically inspect residuals
+
+```{r}
+autoplot(model) +
+  theme_bw(base_size = 14)
+```
+
+### Part D - Breusch-Pagan test
+Perform a Breusch-Pagan test for heteroskedasticity related to all five explanatory
+variables.
+
+```{r}
+bptest(model)
+
+
+bptest(model, ~ vala + rain, data = airquality)
+```
+
+### Part E - White test
+Perform a White test for heteroskedasticity. How reliable is this test given that we
+have 30 observations and how many degrees of freedom on the chi-square
+distribution?????
+
+```{r}
+bptest(model, ~ vala + rain + coas + dens + medi + I(vala^2) + I(rain^2) + I(dens^2) + I(medi^2), data = airquality)
+```
+
+### Part F - Check heteroskedasticity by 'coas'
+Check if heteroskedasticity may depend on whether smsa is on the coas:
+
+```{r}
+plot(airquality$coas, residuals(model),
+     xlab = "Coast (1=Yes, 0=No)", ylab = "Residuals")
+
+# Find percentage of observations with coas=0
+(percentage_coas_0 <- mean(airquality$coas == 0))
+
+summary(airquality$coas)
+
+# Perform Goldfeld-Quandt test
+model2 <- lm(airq ~ vala + rain + dens + medi, data = airquality)
+gq_test <- gqtest(model2, order.by = ~ coas, point = percentage_coas_0, data = airquality)
+print(gq_test)
+
+# suppose the order by variable was continuous, for example medi
+gq_test2 <- gqtest(model, order.by = ~ medi, point = 0.5, fraction = 0.2, data = airquality)
+print(gq_test2)
+```
+
+### Part G - Multiplicative Heteroskedasticity
+Both BP and White test have quite a generic alternative hypothesis and have
+therefore a relatively ow power. Assume now that heteroskedasticity is
+multiplicative
+
+```{r}
+plot(airquality$vala, residuals(model), xlab = "Value Added", ylab = "Residuals")
+plot(airquality$rain, residuals(model), xlab = "Rain", ylab = "Residuals")
+plot(airquality$dens, residuals(model), xlab = "Density", ylab = "Residuals")
+plot(airquality$medi, residuals(model), xlab = "Median Income", ylab = "Residuals")
+```
+
+### Part H - Test for multiplicative heteroskedasticity
+
+```{r}
+res_sq <- residuals(model)^2
+
+
+aux_variance_model <- lm(log(res_sq) ~ coas + medi, data = airquality)
+summary(aux_variance_model)
+
+# This is the F-test of the auxiliary regression.
+# We test H0: coas = 0 AND medi = 0
+linearHypothesis(aux_variance_model, c("coas = 0", "medi = 0"))
+```
+
+### Part I - Robust Standard Errors
+Obtain the robust standard errors. You need to install estimatr and car
+
+```{r}
+model_robust <- lm_robust(airq ~ vala + rain + coas + dens + medi,
+                          data = airquality)
+
+modelsummary(list(model,model_robust), stars=TRUE)
+```
+
+### Part J - Bootstrapped Standard Errors
+Obtain the bootstrapped s.e. Here you need the package sandwich
+
+```{r}
+# Uses lmtest and sandwich packages
+coeftest(model, vcov = vcovBS(model), R=1000)
+```
+
+### Part K - Compute FGLS Estimator
+Based on the test in h. compute the FGLS estimator for the linear model. Compare
+the results with the OLS estimates
+
+```{r}
+variance <- exp(fitted(aux_variance_model))
+
+# Estimate the model using lm and specify weights
+model_fgls <- lm(airq ~ vala + rain + coas + dens + medi,
+                 weights = 1 / variance,
+                 data = airquality)
+
+summary(model_fgls)
+```
+
+##### Compare OLS, Robust, and FGLS estimates
+
+```{r}
+stargazer(model, model_robust, model_fgls,
+           type = "text",
+           no.space = TRUE)
+
+
+# Alternatively
+
+models_list <- list(
+  "OLS" = model,
+  "Robust (estimatr)" = model_robust,
+  "FGLS" = model_fgls
+)
+
+modelsummary(models_list, stars = TRUE)
+```
+
+
