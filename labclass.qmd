@@ -1,0 +1,101 @@
+---
+title: "Lab Session 3"
+author: Stefanio Marques
+format: pdf
+editor: visual
+---
+
+## Load the required library for reading Excel files
+
+```{r}
+library(dplyr)
+infant <- readxl::read_excel("infant.xlsx")
+infant <- infant |>
+  filter(smoke != 9 & age > 18 & race != 10) |>
+  select(-(id:outcome), -sex) |>
+  mutate(
+    wt = ifelse(wt == 999, NA, wt),
+    wt = wt * 0.4536,
+    # This is the corrected line with backticks added
+    `Ethnic group` = recode_factor(
+      race,
+      `6` = "Latino",
+      `7` = "Black",
+      `8` = "Asian",
+      `9` = "Mixed",
+      .default = "White"
+    ),
+    smoke = recode_factor(
+      smoke,
+      `1` = "currently",
+      `2` = "until pregnancy",
+      `3` = "used to",
+      `0` = "never"
+    ),
+    gestation = ifelse(gestation == 999, NA, gestation)
+  )
+```
+
+# 1. Basic Scatter Plot
+
+```{r}
+plot(bwt ~ wt,
+     data = infant,
+     main = "Basic Scatter Plot",
+     xlab = "Mother's Weight (kg)",
+     ylab = "Infant Birth Weight (g)")
+```
+
+# 2. Enhanced Scatter Plot with Colors and Legend
+
+```{r}
+smoke_colors <- c("blue", "orange", "red", "grey1")
+```
+
+```{r}
+plot(bwt ~ wt,
+     data = infant,
+     main = "Infant Weight vs. Mother's Weight by Smoking Status",
+     xlab = "Mother's Weight (kg)",
+     ylab = "Infant Birth Weight (g)",
+     pch = 19, # Use solid circles
+     col = smoke_colors[infant$smoke] # Color the points based on the 'smoke' variable
+     )
+legend("topright", 
+       legend = levels(infant$smoke),
+       inset=c(0,0),
+       col = smoke_colors,
+       pch = 19,
+       title = "Smoking Status",
+       cex = 0.75)
+```
+# 3. Formatted Bar Chart
+```{r}
+smoke_counts <- table(infant$smoke)
+```
+
+```{r}
+barplot(smoke_counts,
+        main = "Distribution of Smoking Status Among Mothers",
+        ylab = "Number of Mothers",
+        col = c("skyblue", "lightgoldenrod1", "salmon", "lightgreen"),
+        ylim = c(0, max(smoke_counts) * 1.2) # Set y-axis limit 20% higher than the tallest bar
+        )
+
+```
+# 4. Box Plot with Gridlines
+
+```{r}
+boxplot(bwt ~ smoke,
+        data = infant,
+        main = "Infant Birth Weight by Mother's Smoking Status",
+        xlab = "Mother's Smoking Status",
+        ylab = "Infant Birth Weight (g)",
+        col = c("lightblue", "lightyellow", "lightpink", "palegreen"),
+        las = 1 # Make the y-axis labels horizontal
+        )
+grid(nx = NA, ny = NULL, col = "gray", lty = "dotted")
+```
+
+
+

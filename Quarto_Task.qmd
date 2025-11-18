@@ -1,0 +1,16 @@
+---
+title: "Quarto Task"
+author: "Stefanio Marques - 25250375"
+format: pdf
+---
+
+## Load the MASS package
+
+```{r}
+# Load the MASS package
+library(MASS)
+```
+
+# Show the first 6 rows of the cats dataset
+
+head

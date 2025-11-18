@@ -1,0 +1,170 @@
+---
+title: "labclassweek08"
+author: "Stefanio Marques - 25250375"
+format: pdf
+editor: visual
+---
+
+### Lab 7 (Topic 6) - Handling different data types
+
+#### Introduction
+
+```{r}
+library(MASS)
+library(tidyverse)
+library(dplyr)
+
+data(quine)
+
+# Attach the data set to the R search path
+attach(quine)
+
+# Look at the structure of the data
+str(quine)
+```
+
+#### Question 02
+Store the data into a tibble and give the columns more informative names:
+
+```{r}
+
+# Convert the data frame to a tibble and rename columns
+quine_tbl <- as_tibble(quine) |>
+  rename(
+    Ethnicity = Eth,
+    Gender = Sex,
+    AgeGroup = Age,
+    LearnerStatus = Lrn,
+    DaysAbsent = Days
+  )
+
+# View the new tibble
+print(quine_tbl)
+```
+
+#### Question 03
+Use the table function on the ethnic background variable. What ethnicity is most prevalent in the data set?
+
+```{r}
+table(quine_tbl$Ethnicity)
+```
+
+#### Question 04
+Use the factor function to change the age and learner variables into (sensibly!) ordered factors using the extra argument ordered = TRUE. Check the structure of the data set to ensure what you think has happened to these variables, actually has.
+
+```{r}
+# The levels F0, F1, F2, F3 represent age classes in increasing order.
+quine_tbl$AgeGroup <- factor(quine_tbl$AgeGroup,
+                             levels = c("F0", "F1", "F2", "F3"),
+                             ordered = TRUE)
+
+# Change LearnerStatus to an ordered factor
+# We'll order it as "Slow Learner" < "Average Learner"
+quine_tbl$LearnerStatus <- factor(quine_tbl$LearnerStatus,
+                                  levels = c("SL", "AL"),
+                                  ordered = TRUE)
+
+# Check the structure to see the changes
+str(quine_tbl)
+```
+
+
+#### Question 05
+Use the table() to compare learner ability and ethnicity in a 2-way table. Now use dplyr::count() to get the same information.
+
+```{r}
+# 1. Using table()
+table(quine_tbl$LearnerStatus, quine_tbl$Ethnicity)
+
+# 2. Using dplyr::count()
+quine_tbl |>
+  count(LearnerStatus, Ethnicity)
+```
+
+#### Question 06
+Use aggregate() to calculate the mean days absent by learner status and sex. Now use functions from dplyr to get the same information.
+
+```{r}
+# 1. Using aggregate()
+aggregate(DaysAbsent ~ LearnerStatus + Gender, data = quine_tbl, FUN = mean)
+
+# 2. Using dplyr
+quine_tbl |>
+  group_by(LearnerStatus, Gender) |>
+  summarise(MeanDaysAbsent = mean(DaysAbsent, na.rm = TRUE))
+```
+
+#### Question 07
+Use the cut() function on the days absent variable to divide it up into 3 categories: few (0-20), medium (20-60) and many (60-100). Have a look at the output. Is there anything strange going on here? If so, how can you fix it (use the help file!). How many students fall into the many category?
+
+```{r}
+# First, let's check the range of DaysAbsent
+summary(quine_tbl$DaysAbsent)
+# Min = 0, Max = 81. The 60-100 range is fine.
+
+# Use cut()
+days_cats <- cut(quine_tbl$DaysAbsent,
+                 breaks = c(0, 20, 60, 100),
+                 labels = c("few", "medium", "many"))
+
+# Look at the output
+table(days_cats)
+```
+
+Is there anything strange going on here?
+
+Yes. If you look at the summary() of DaysAbsent, the minimum value is 0. By default, cut() creates intervals that are open on the left ((a, b]). This means the interval (0, 20] would exclude any student who had 0 days absent.
+
+How can you fix it?
+
+You can fix this by using the include.lowest = TRUE argument. This ensures the first bin is "closed" on the left, making it 0, 20.
+
+```{r}
+# Corrected cut() function
+days_cats_fixed <- cut(quine_tbl$DaysAbsent,
+                       breaks = c(0, 20, 60, 100),
+                       labels = c("few", "medium", "many"),
+                       include.lowest = TRUE) # This is the fix
+
+# Look at the corrected table
+table(days_cats_fixed)
+```
+
+#### Question 08
+Load the gapminder dataset from the gapminder package. Focus on the 2007 data and European counties. Do a plot with life expectancy on the x-axis, and the countries sorted by according their life expectancy values on the y-axis.
+
+```{r}
+library(gapminder)
+library(ggplot2)
+library(dplyr) # Should already be loaded
+
+# Filter the data for European countries in 2007
+gapminder_2007_europe <- gapminder %>%
+  filter(year == 2007, continent == "Europe")
+
+# Create the plot
+ggplot(gapminder_2007_europe, aes(x = lifeExp, y = reorder(country, lifeExp))) +
+  geom_point() +
+  labs(
+    title = "Life Expectancy in Europe (2007)",
+    x = "Life Expectancy (Years)",
+    y = "Country"
+  ) +
+  theme_minimal() # A clean theme
+```
+
+#### Question 09
+
+Based on an analysis of the R-help mailing list archive for May 2020:
+
+Topics: There were 5 unique topics (threads) discussing the new version.
+
+3 topics matched "R 4" (e.g., "Partial matching list elements in R 4.0")
+1 topic matched "R-4" (e.g., "PCRE configure problem with R-4.0.0")
+1 topic matched "R/4" (e.g., "Problem with checks on R/4.0.0")
+
+Messages: There were a total of 21 messages posted across these 5 topics.
+
+11 messages for "R 4" topics
+7 messages for the "R-4" topic
+3 messages for the "R/4" topic

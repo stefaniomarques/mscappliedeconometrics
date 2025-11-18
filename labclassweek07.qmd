@@ -1,0 +1,58 @@
+---
+title: "labclass06"
+author: Stefanio Marques
+format: pdf
+editor: visual
+---
+
+## SetUp the project
+
+```{r}
+data01 <- read.delim("datalab/myfile.txt", 
+                          header = TRUE, 
+                          sep = "\t")
+
+head(data01)
+```
+
+## Using the package
+
+```{r}
+install.packages("rio")
+library(rio)
+
+mydata <- import("datalab/myfile.txt")
+
+rio::convert(in_file = "datalab/myfile.txt", 
+             out_file = "datalab/myfile.xlsx")
+
+# This command returns TRUE if R finds the file at the specified path
+file.exists("datalab/myfile.xlsx")
+```
+
+#### Creating a List with gapminder
+
+```{r}
+library(gapminder)
+library(dplyr)
+
+# 1. Filter the data for the specific years
+gap_1952 <- gapminder %>% filter(year == 1952)
+gap_2007 <- gapminder %>% filter(year == 2007)
+
+# 2. Define the source information
+source_info <- "Data from the R 'gapminder' package, compiled by Prof. Hans Rosling."
+```
+
+#### Creating and Inspecting the List
+
+```{r}
+gapminder_list <- list(`data source info` = 
+                     "This is a subset of data from the gapminder package",
+                   years = c(1952, 2007),
+                   `gapminder 1952` = filter(gapminder, year == 1952),
+                   `gapminder 2007` = filter(gapminder, year == 2007))
+
+str(gapminder_list)
+```
+
