@@ -1,0 +1,120 @@
+---
+title: "Tutorial 5"
+author: "Stefanio Marques - 25250375"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+# Introduction
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 5")
+```
+
+#### Load the packages
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(lmtest)
+library(broom)
+library(modelsummary)
+library(oaxaca)
+```
+
+#### Part 01 (Upload the dataset)
+
+```{r}
+WAGE1 <- read_xlsx("WAGE1.xlsx")
+
+names(WAGE1)
+```
+
+### Questions 1 - 3 focus on selection of regressors
+
+Let’s compare two non-nested models for the natural log of wages:
+
+```{r}
+# No residence dummies
+model1 <- lm(log(wage) ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + 
+               I(exper^2) + female + married + numdep, 
+             data = WAGE1)
+
+# Includes residence dummies, no married or numdep 
+model2 <- lm(log(wage) ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + 
+               I(exper^2) + female + smsa + northcen + south + west,
+             data = WAGE1)
+  
+modelsummary(list(model1,model2))
+
+glance(model1)
+glance(model2)
+
+# --- Compare using AIC and BIC [cite: 13, 15] ---
+print("--- AIC/BIC Comparison ---")
+# Lower AIC/BIC is better [cite: 16]
+print("Model 1 Stats (AIC/BIC):")
+glance(model1) %>% select(AIC, BIC)
+
+print("Model 2 Stats (AIC/BIC):")
+glance(model2) %>% select(AIC, BIC)
+
+```
+
+
+#### Question 02: encompassing test
+
+```{r}
+encomptest(model1, model2)
+
+# model 1 does not encompass model 2 (F = 3.79)
+# model 2 encompasses model 1 (F = 2.7)
+```
+
+#### Question 03 Applying J-Test
+
+```{r}
+jtest(model1, model2)
+```
+
+### Questions 4-7: Oaxaca Decomposition
+
+```{r}
+print("--- Summary Stats by Gender ---")
+datasummary_balance(~female,
+                    data = WAGE1,
+                    dinm = FALSE)
+
+# Oaxaca on Linear Model (wage)
+oaxaca_lin <- oaxaca(wage ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + I(exper^2) + 
+                       married + numdep + smsa + northcen + south + west | female, 
+                     data = WAGE1, R = 1000)
+
+# Show average wage by group and their difference
+oaxaca_lin$y
+
+# Show the overall threefold decomposition results
+oaxaca_lin$threefold$overall
+
+# Plot the detailed results by variable
+plot(oaxaca_lin, components = c("endowments", "coefficients"))
+```
+
+#### Question 07 - log-linear model
+
+```{r}
+# Analisys for the log wages
+oaxaca_log <- oaxaca(log(wage) ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + I(exper^2) +
+                       married + numdep + smsa + northcen + south + west | female, 
+                     data = WAGE1, R = 1000)
+
+# Show the average log-wage by group and the difference
+print(oaxaca_log$y)
+
+# Show the decomposition results
+print(oaxaca_log$threefold$overall)
+
+# Plot the detailed results for the log model
+plot(oaxaca_log, components = c("endowments", "coefficients"))
+```

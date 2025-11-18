@@ -1,0 +1,207 @@
+---
+title: "Tutorial 4"
+author: "Stefanio Marques - 25250375"
+date: "`r Sys.Date()`"
+format: pdf
+editor: visual
+---
+
+# Introduction
+
+```{r}
+setwd("/Users/diegomandu/Downloads/class/programming with R/econometrics labs/tutorial 4")
+```
+
+### Load the packages
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(ggfortify)
+library(kdensity)
+library(tseries)
+library(stargazer)
+library(lmtest)
+library(modelsummary)
+library(ggplot2)
+library(marginaleffects)
+library(car)
+```
+
+### Part 01 (Upload the dataset)
+
+```{r}
+WAGE1 <- read_xlsx("WAGE1.xlsx")
+```
+
+#### b. Generate the natural log of wages and estimate a model that controls for education, tenure and its square, experience and its square, female, married, numdep and residence dummies.
+
+```{r}
+reg1 <- lm(log(wage) ~ educ + tenure + I(tenure^2) + exper + I(exper^2) + 
+               female + married + numdep + south + northcen + west, 
+               data = WAGE1)
+
+summary(reg1)
+```
+
+### Questions 1 - 6 focus on analysis of residuals:
+
+#### Generate a plot of residuals vs fitted values.
+
+```{r}
+autoplot(reg1) +
+  theme_bw(base_size = 14)
+
+plot(reg1)
+```
+
+-   Residuals vs Fitted: The blue line is relatively flat and centered around zero, which is a good sign for the linearity assumption. However, the vertical spread of the points increases as the fitted values get larger. This shape is a sign of heteroscedasticity.
+
+-   Normal Q-Q: The points fall along the dashed diagonal line. This indicates that the residuals follow a normal distribution, satisfying the normality assumption.
+
+-   Scale-Location: This plot also checks for constant variance (homoscedasticity). The upward-sloping blue line confirms what we saw in the first plot: the variance of the residuals increases with the fitted values.
+
+-   Residuals vs Leverage: This plot helps identify influential outliers. There are no points in the upper or lower right corners. This is a good sign, suggesting that no single observation is disproportionately affecting the regression results.
+
+The model shows signs of heteroscedasticity.
+
+The solution might be compute heteroscedasticity-robust standard errors to account for the non-constant variance, making your hypothesis tests valid again.
+
+#### Check for outliers looking at the standardized residuals vs leverage plot. What do you think?
+
+```{r}
+testoutlier <- outlierTest(reg1)
+
+print(testoutlier)
+```
+
+
+```{r}
+reg2 <- lm(log(wage) ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + I(exper^2) + 
+               female + married + numdep + south + northcen + west, 
+               data = WAGE1)
+
+summary(reg2)
+```
+
+#### Question 02
+
+#### 03 Graph the following:
+
+```{r}
+influenceIndexPlot(reg2, vars = "hat", 
+                   id=F, main = "Leverage (hat values)")
+
+influenceIndexPlot(reg2, vars = "Studentized",
+                   id=F, main = "Studentized Residuals")
+
+influenceIndexPlot(reg2, vars = "Cook",
+                   id=F, main = "Cook's distance")
+```
+
+Leverage: Observation #265 stands out for having unusual characteristics (high leverage).
+
+Outliers (Studentized Residuals): Observation #128 is the main remaining outlier, meaning the model makes a large prediction error for it. However, its characteristics are common (low leverage).
+
+Influence (Cook's Distance): This is the most important finding. No observation has a Cook's distance high enough to be considered problematic. This means no single point is distorting the model's results.
+
+#### 04. Run the model without obs 128 and plot the estimates of the regression with and without that observation
+
+```{r}
+reg3 <- lm(log(wage) ~ educ + I(educ^2) + exper + I(exper^2) + tenure + 
+             I(tenure^2) + female + married + numdep + northcen + south + west, data=WAGE1 %>%
+             slice(-128))
+
+modelplot(list(reg2, reg3),
+coef_omit = 'Interc')+
+geom_vline(xintercept = 0,size=0.2,colour="red")
+```
+
+#### 05. Calculate the Dfbetas and plot the ones for the variable married (be careful to calculate them for the model that includes ALL observations
+
+```{r}
+DFBETAS <- dfbetas(reg2)
+
+plot(DFBETAS[, "married"], ylab="married")
+abline(h = c(-0.2, 0.2), lty = 2)
+```
+
+#### 06. Let’s check whether residuals are normal (stick with model that contains all observations)
+
+```{r}
+aaron <- reg2$residuals
+
+kde <- kdensity(aaron, start = "normal", kernel = "gaussian")
+plot(kde, main = "Kernel Density of Residuals vs. Normal Curve")
+lines(kde, plot_start = TRUE, col = "red")
+
+# Obtain a Q-Q plot
+qqnorm(aaron, main = "Normal Q-Q Plot of Residuals")
+qqline(aaron, col = "red", lwd = 2)
+
+# Kolmogorov-Smirnov test
+ks_test <- ks.test(aaron, "pnorm", mean = mean(aaron), sd = sd(aaron))
+print(ks_test)
+
+# Jarque-Bera test
+jarque_bera_test <- jarque.bera.test(aaron)
+print(jarque_bera_test)
+```
+
+The evidence from that test is more compelling, and the most reliable conclusion is still that your residuals are not normally distributed.
+
+### Part 02: The next set of questions (7 – 9) will focus on assessing whether the chosen functional form is correct.
+
+#### 07. Run a regression that controls for education, tenure, experience, female, married, numdep and residence dummies (basically no squared term). Then perform the RESET test using the commands:
+
+```{r}
+reg4 <- lm(log(wage) ~ educ + tenure + exper + female + married + 
+                 numdep + south + northcen + west, 
+                 data = WAGE1)
+
+summary(reg4)
+
+#Perform the RESET test including only the squared fitted term (ŷ²)
+resettest(reg4, power = 2:2)
+
+#Perform the RESET test including squared and cubed terms (ŷ² and ŷ³)
+resettest(reg4, power = 2:3)
+
+```
+
+#### 08. Let’s go back to the specification where we control for education/tenure/experience square, and let’s test for a structural break between male and female workers. Use the dummy variable method and run two regressions.
+
+```{r}
+reg_restricted <- lm(log(wage) ~ educ + I(educ^2) + tenure + I(tenure^2) + exper + I(exper^2) +
+                 married + numdep + south + northcen + west, 
+                 data = WAGE1)
+
+reg_unrestricted <- lm(log(wage) ~ female * (educ + I(educ^2) + tenure + I(tenure^2) + 
+                                             exper + I(exper^2) + married + 
+                                             numdep + south + northcen + west), 
+                       data = WAGE1)
+
+modelsummary(list(reg_restricted, reg_unrestricted))
+
+#Perform the F-test to compare the models
+anova(reg_restricted, reg_unrestricted)
+```
+
+#### 09. Now let’s test a linear vs a log-linear model (include the squared terms of education/tenure/experience and reintroduce the female dummy in level)
+
+```{r}
+reg5 <- lm(wage ~ educ + I(educ^2) + exper + I(exper^2) + 
+                   tenure + I(tenure^2) + female + married + numdep + 
+                   south + northcen + west, 
+                   data = WAGE1)
+
+reg6 <- lm(log(wage) ~ educ + I(educ^2) + exper + I(exper^2) + 
+                       tenure + I(tenure^2) + female + married + numdep + 
+                       south + northcen + west, 
+                       data = WAGE1)
+
+petest(reg5, reg6)
+```
+
+The PE test decisively rejects the linear model, as its p-value is nearly zero.
+The test also rejects the log-linear model, but only marginally (p-value of 0.043). When both models are rejected, we choose the one that is "less wrong." Since the evidence against the linear model is far stronger, the log-linear specification is the clear winner. This choice is strongly supported by economic theory, which favors a log-linear form for wage equations.
